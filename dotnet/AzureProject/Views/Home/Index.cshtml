@@ -1,0 +1,58 @@
+﻿@model List<AzureProject.Models.Product>
+@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="text-center mt-4">
+    <h1 class="display-4">.NET App on Azure ☁️</h1>
+    <p class="lead">ASP.NET Core MVC application published to <strong>Azure App Service</strong>.</p>
+</div>
+
+<div class="row justify-content-center mt-4">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header fw-bold">Runtime Information</div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>Environment</span>
+                    <span class="badge bg-primary">@(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production")</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>.NET Runtime</span>
+                    <span>@Environment.Version</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>Server (Host) Name</span>
+                    <span>@Environment.MachineName</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>Server Time (UTC)</span>
+                    <span>@DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="row justify-content-center mt-4 mb-5">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header fw-bold">Demo Data (Model &#8594; Controller &#8594; View)</div>
+            <table class="table table-striped mb-0">
+                <thead>
+                    <tr><th>Id</th><th>Name</th><th class="text-end">Price</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in Model)
+                    {
+                        <tr>
+                            <td>@p.Id</td>
+                            <td>@p.Name</td>
+                            <td class="text-end">@p.Price.ToString("C")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

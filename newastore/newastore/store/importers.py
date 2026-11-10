@@ -1,0 +1,787 @@
+"""Live import helpers for CheapShark, Steam and SteamSpy data.
+
+Used by:
+    - manage.py import_steamspy   (full Steam catalog background import)
+    - store.views.search          (zero-result live import)
+
+All network access is rate-limit aware: CheapShark bans hammering IPs for
+long stretches, Steam returns 429s, SteamSpy asks for ~4 req/min.
+"""
+import os
+import re
+import time
+import threading
+from datetime import datetime, timezone as dt_timezone
+from decimal import Decimal
+
+import requests
+import uuid
+
+from django.utils import timezone as dj_tz
+from django.utils.text import slugify
+
+from .models import Product, ProductImage, Tag, Category
+
+CS_API = 'https://www.cheapshark.com/api/1.0'
+STEAM_APPDETAILS = 'https://store.steampowered.com/api/appdetails'
+STEAMSPY_API = 'https://steamspy.com/api.php'
+
+USER_AGENT = 'NewaStore Seeder/1.0 (educational demo project)'
+REQUEST_TIMEOUT = 25
+
+USD_TO_NPR = Decimal(os.environ.get('USD_TO_NPR', '135'))
+
+BULK_BATCH = 500
+
+SKIP_TITLE_PATTERNS = [
+    re.compile(r'\bDLC\b', re.I),
+    re.compile(r'Soundtrack', re.I),
+    re.compile(r'Season Pass', re.I),
+    re.compile(r'\bOST\b', re.I),
+    re.compile(r'\bDemo\b(?!n)', re.I),
+]
+
+
+def tier_for_usd(usd):
+    """Production tier from the imported USD list price.
+
+    Drives homepage prominence and default ordering. Derived from price
+    because it is the one signal present on every catalog row (metacritic is
+    almost always missing in the SteamSpy feed).
+    """
+    usd = float(usd or 0)
+    if usd <= 0:
+        return Product.TIER_FREE
+    if usd >= 40:
+        return Product.TIER_AAA
+    if usd >= 15:
+        return Product.TIER_AA
+    return Product.TIER_INDIE
+
+
+def _round_to(value, step):
+    return Decimal(int(round(float(value) / step)) * step)
+
+
+def tiered_price_npr(usd):
+    """Map an imported USD list price to a clean, tiered NPR price.
+
+    AAA (>= $40) -> Rs 3,000-8,000 (round 500); AA ($15-40) -> Rs 1,500-3,500
+    (round 250); indie/older (< $15) -> Rs 400-1,800 (round 100); free -> Rs 0.
+    Replaces the old raw usd*rate conversion, which produced odd figures like
+    Rs 1,349 or Rs 8,097.
+    """
+    usd = float(usd or 0)
+    if usd <= 0:
+        return Decimal('0')
+    if usd >= 40:                                   # AAA
+        u = min(usd, 70.0)
+        return _round_to(3000 + (u - 40) / 30 * 5000, 500)
+    if usd >= 15:                                   # AA / mid-tier
+        u = min(usd, 40.0)
+        return _round_to(1500 + (u - 15) / 25 * 2000, 250)
+    return _round_to(400 + usd / 15 * 1400, 100)    # indie / older
+
+
+def tiered_prices(price_usd, discount_usd=None):
+    """Return (price, discount_price, cost_price, tier) in NPR for an import row.
+
+    The sale price keeps the source discount *ratio* against the tiered list
+    price, so a 25%-off deal stays 25% off after re-tiering.
+    """
+    price_usd = Decimal(price_usd or 0)
+    tier = tier_for_usd(price_usd)
+    price = tiered_price_npr(price_usd)
+    cost = _round_to(price * Decimal('0.7'), 10) if price > 0 else None
+    discount = None
+    if discount_usd and price_usd > 0 and price > 0:
+        d = _round_to(price * (Decimal(discount_usd) / price_usd), 10)
+        if 0 < d < price:
+            discount = d
+    return price, discount, cost, tier
+
+
+def normalize_title(title):
+    return re.sub(r'[^a-z0-9]', '', (title or '').lower())
+
+
+def is_game(title):
+    return not any(p.search(title or '') for p in SKIP_TITLE_PATTERNS)
+
+
+SOFTWARE_GENRES = [
+    'Animation & Modeling', 'Audio Production', 'Design & Illustration',
+    'Photo Editing', 'Software Training', 'Utilities', 'Video Production',
+    'Web Publishing', 'Game Development', 'Education', 'Accounting',
+]
+
+STEAM_APPLICATION_TYPES = {
+    'software', 'video', 'music', 'audio', 'media', 'tool', 'hardware',
+    'application', 'series', 'episode',
+}
+
+_APP_BRAND_PATTERNS = [
+    r'PowerDirector', r'PhotoDirector', r'AudioDirector', r'ColorDirector',
+    r'Director Suite', r'CyberLink', r'Wondershare', r'Filmora', r'Movavi',
+    r'VEGAS Pro', r'Movie Studio', r'ACID Pro', r'SOUND FORGE',
+    r'Wallpaper Engine', r'FL Studio', r'Ableton Live', r'VirtualDJ', r'Serato',
+    r'Voicemod', r'Aseprite', r'Substance 3D', r'Substance Painter',
+    r'Substance Designer', r'ZBrush', r'Cinema 4D', r'3ds Max', r'Autodesk Maya',
+    r'Clip Studio Paint', r'MediBang', r'Manga Studio',
+    r'RPG Maker', r'GameMaker Studio', r'Game Maker Studio', r'Visual Novel Maker',
+    r'Character Creator \d', r'iClone', r'Cartoon Animator',
+    r'Screen Recorder', r'Video Converter', r'Data Recovery', r'Driver Booster',
+    r'\bAntivirus\b', r'3DMark', r'PCMark', r'MotionBuilder', r'SpeedTree',
+    r'Streamlabs', r'XSplit', r'DAZ Studio',
+]
+_APP_KEYWORDS = re.compile('|'.join(_APP_BRAND_PATTERNS), re.I)
+
+
+def looks_like_application(name):
+    """Heuristic: does this title name a piece of software rather than a game?
+
+    Matches only unmistakable software brand names (CyberLink PowerDirector,
+    FL Studio, Wallpaper Engine, RPG Maker, ...) that essentially never appear
+    in real game titles, so false positives against games are near zero. Used
+    as a secondary signal by ``classify_catalog`` on top of the authoritative
+    SteamSpy software-genre lists.
+    """
+    return bool(_APP_KEYWORDS.search(name or ''))
+
+
+def parse_owners(raw):
+    """SteamSpy ``owners`` bucket string -> midpoint int.
+
+    ``'10,000,000 .. 20,000,000'`` -> ``15000000``; a single value is returned
+    as-is; anything unparseable -> ``0``.
+    """
+    if raw is None:
+        return 0
+    nums = re.findall(r'\d[\d,]*', str(raw))
+    vals = [int(n.replace(',', '')) for n in nums]
+    if not vals:
+        return 0
+    if len(vals) >= 2:
+        return (vals[0] + vals[1]) // 2
+    return vals[0]
+
+
+OWNERS_AAA = 5_000_000
+OWNERS_AA = 500_000
+OWNERS_INDIE = 20_000
+
+
+def tier_for_owners(owners, has_price, curated=False):
+    """Prominence tier from real popularity (SteamSpy owners) + a curated list.
+
+    Deliberately NOT derived from price: a free-to-play megahit outranks a
+    pricey obscure title. Curated blockbusters and anything with >=5M owners
+    are AAA; >=500k AA; the priced/known long tail is Indie; only titles that
+    are both free and obscure (no price, negligible owners) fall to the lowest
+    Free tier, so the "Free" badge keeps meaning genuinely free games.
+    """
+    owners = int(owners or 0)
+    if curated or owners >= OWNERS_AAA:
+        return Product.TIER_AAA
+    if owners >= OWNERS_AA:
+        return Product.TIER_AA
+    if has_price or owners >= OWNERS_INDIE:
+        return Product.TIER_INDIE
+    return Product.TIER_FREE
+
+
+CURATED_AAA = {
+    730: 'Counter-Strike 2',
+    570: 'Dota 2',
+    271590: 'Grand Theft Auto V',
+    1245620: 'Elden Ring',
+    1091500: 'Cyberpunk 2077',
+    292030: 'The Witcher 3: Wild Hunt',
+    1174180: 'Red Dead Redemption 2',
+    1086940: "Baldur's Gate 3",
+    578080: 'PUBG: BATTLEGROUNDS',
+    252490: 'Rust',
+    346110: 'ARK: Survival Evolved',
+    105600: 'Terraria',
+    413150: 'Stardew Valley',
+    72850: 'The Elder Scrolls V: Skyrim',
+    489830: 'The Elder Scrolls V: Skyrim Special Edition',
+    377160: 'Fallout 4',
+    238960: 'Path of Exile',
+    230410: 'Warframe',
+    440: 'Team Fortress 2',
+    550: 'Left 4 Dead 2',
+    620: 'Portal 2',
+    4000: "Garry's Mod",
+    1145360: 'Hades',
+    1085660: 'Destiny 2',
+    359550: "Tom Clancy's Rainbow Six Siege",
+    289070: "Sid Meier's Civilization VI",
+    227300: 'Euro Truck Simulator 2',
+    236390: 'War Thunder',
+    218620: 'PAYDAY 2',
+    291550: 'Brawlhalla',
+    553850: 'HELLDIVERS 2',
+    1623730: 'Palworld',
+    588650: 'Dead Cells',
+    275850: "No Man's Sky",
+    322330: "Don't Starve Together",
+    374320: 'Dark Souls III',
+    582010: 'Monster Hunter: World',
+    814380: 'Sekiro: Shadows Die Twice',
+    990080: 'Hogwarts Legacy',
+    1593500: 'God of War',
+    8930: "Sid Meier's Civilization V",
+}
+
+
+
+def parse_ts(ts):
+    try:
+        ts = int(ts)
+        if ts > 0:
+            return datetime.fromtimestamp(ts, tz=dt_timezone.utc)
+    except (TypeError, ValueError):
+        pass
+    return None
+
+
+def get_or_create_tag(name):
+    """Slug-safe tag lookup: different spellings can slugify identically
+    (e.g. 'Free To Play' vs 'Free to Play'), so match by slug as a fallback."""
+    name = (name or '').strip()[:50]
+    if not name:
+        return None
+    tag = Tag.objects.filter(name=name).first()
+    if tag:
+        return tag
+    slug = slugify(name)
+    if not slug:
+        return None
+    tag = Tag.objects.filter(slug=slug).first()
+    if tag:
+        return tag
+    try:
+        tag, _ = Tag.objects.get_or_create(name=name)
+    except Exception:
+        tag = Tag.objects.filter(slug=slug).first()
+    return tag
+
+
+
+class Api:
+    def __init__(self):
+        self.session = requests.Session()
+        self.session.headers.update({'User-Agent': USER_AGENT})
+        self._last = {}
+        self._lock = threading.Lock()
+
+    def _throttle(self, host, min_interval):
+        with self._lock:
+            now = time.time()
+            last = self._last.get(host, 0)
+            wait = min_interval - (now - last)
+            if wait > 0:
+                time.sleep(wait)
+            self._last[host] = time.time()
+
+    def get_json(self, url, params=None, min_interval=0.75, retries=2, ok_429=True):
+        host = re.sub(r'^https?://', '', url).split('/')[0]
+        for attempt in range(1, retries + 1):
+            self._throttle(host, min_interval)
+            try:
+                r = self.session.get(url, params=params, timeout=REQUEST_TIMEOUT)
+                if r.status_code == 429:
+                    if not ok_429:
+                        return 'RATE_LIMITED'
+                    time.sleep(15 * attempt)
+                    continue
+                r.raise_for_status()
+                return r.json()
+            except requests.RequestException:
+                if attempt == retries:
+                    return None
+                time.sleep(attempt * 2)
+        return None
+
+    def get_image(self, url):
+        try:
+            self._throttle(url.split('/')[2], 0.05)
+            r = self.session.get(url, timeout=30)
+            if r.ok and r.headers.get('Content-Type', '').startswith('image/'):
+                return r.content
+        except requests.RequestException:
+            pass
+        return None
+
+
+api = Api()
+
+
+def steam_capsule_url(appid):
+    return (f'https://shared.fastly.steamstatic.com/store_item_assets/steam/'
+            f'apps/{appid}/capsule_616x353.jpg')
+
+
+def product_external_url(appid, game_id=None):
+    if appid:
+        return f'https://store.steampowered.com/app/{appid}/'
+    if game_id:
+        return f'https://www.cheapshark.com/game/{game_id}/'
+    return ''
+
+
+
+def _games_category():
+    category, _ = Category.objects.get_or_create(
+        name='Games',
+        defaults=dict(description='Digital PC game keys — live price data', sort_order=0))
+    return category
+
+
+def upsert_games(games, data_source, update_existing=True, on_progress=None):
+    """Bulk-create/update Products from normalized game dicts.
+
+    Each game dict: name, price_usd, discount_usd (or None), appid (or None),
+    game_id (CheapShark id or None), metacritic (int or None), release (dt or None),
+    thumb (url or None), description/short_description (optional),
+    genres (list of str, optional).
+
+    Upsert key: steam_app_id when present, otherwise normalized title.
+    Returns (created_count, updated_count).
+    """
+    games = [g for g in games if g.get('name') and is_game(g['name'])
+             and len(normalize_title(g['name'])) >= 2]
+    if not games:
+        return 0, 0
+
+    category = _games_category()
+
+    appids = [g['appid'] for g in games if g.get('appid')]
+    existing_by_appid = {}
+    if appids:
+        existing_by_appid = dict(
+            Product.objects.filter(steam_app_id__in=appids)
+            .values_list('steam_app_id', 'id'))
+
+    need_title_map = any(not g.get('appid') for g in games)
+    existing_by_title = {}
+    if need_title_map:
+        for pid, name in Product.objects.values_list('id', 'name'):
+            existing_by_title.setdefault(normalize_title(name), pid)
+
+    existing_slugs = set(Product.objects.values_list('slug', flat=True))
+    existing_skus = set(Product.objects.values_list('sku', flat=True))
+
+    to_create = []
+    updates = {}
+    update_fields = set()
+
+    for g in games:
+        appid = g.get('appid')
+        game_id = g.get('game_id')
+        name = g['name'][:200]
+
+        pid = existing_by_appid.get(appid) if appid else existing_by_title.get(normalize_title(name))
+        if pid:
+            if not update_existing:
+                continue
+            p = updates.get(pid) or Product(pk=pid)
+            changed = False
+            if g.get('price_usd') is not None:
+                new_price, new_disc, new_cost, new_tier = tiered_prices(
+                    g['price_usd'], g.get('discount_usd'))
+                p.price = new_price
+                p.tier = new_tier
+                update_fields |= {'price', 'tier'}
+                changed = True
+                if new_cost is not None:
+                    p.cost_price = new_cost
+                    update_fields |= {'cost_price'}
+                if g.get('discount_usd') is not None:
+                    p.discount_price = new_disc
+                    update_fields |= {'discount_price'}
+            if g.get('metacritic') is not None and p.metacritic_score != g['metacritic']:
+                p.metacritic_score = g['metacritic']
+                update_fields |= {'metacritic_score'}
+                changed = True
+            ext = product_external_url(appid, game_id)
+            if ext and not p.external_url:
+                p.external_url = ext
+                update_fields |= {'external_url'}
+                changed = True
+            if changed:
+                updates[pid] = p
+            continue
+
+        base_slug = slugify(name)[:180] or f'game-{appid or game_id or uuid.uuid4().hex[:8]}'
+        slug = base_slug
+        if slug in existing_slugs:
+            slug = f'{base_slug[:170]}-{appid or game_id or uuid.uuid4().hex[:6]}'
+        while slug in existing_slugs:
+            slug = f'{base_slug[:165]}-{uuid.uuid4().hex[:8]}'
+        existing_slugs.add(slug)
+
+        sku = f'SS-{appid}' if appid else f'CS-{game_id}' if game_id else f'SKU-{uuid.uuid4().hex[:8].upper()}'
+        if sku in existing_skus:
+            sku = f'{sku}-{uuid.uuid4().hex[:4].upper()}'
+        existing_skus.add(sku)
+
+        price_usd = g.get('price_usd') or Decimal('0')
+        short = (g.get('short_description') or f'Digital PC key for {name}.')[:500]
+        description = g.get('description') or (
+            f'{short}\n\nKey details:\n'
+            f'- Format: Digital download key (no shipping required)\n\n'
+            f'Your key is delivered by email immediately after checkout.')
+        release = g.get('release') or dj_tz.now()
+        t_price, t_disc, t_cost, t_tier = tiered_prices(price_usd, g.get('discount_usd'))
+
+        to_create.append(Product(
+            name=name,
+            slug=slug,
+            sku=sku,
+            description=description,
+            short_description=short,
+            price=t_price,
+            discount_price=t_disc,
+            cost_price=t_cost,
+            tier=t_tier,
+            category=category,
+            is_digital=True,
+            track_inventory=False,
+            steam_app_id=appid,
+            external_url=product_external_url(appid, game_id),
+            metacritic_score=g.get('metacritic'),
+            data_source=data_source,
+            meta_title=name[:60],
+            meta_description=short[:160],
+            published_at=release,
+        ))
+
+    created = 0
+    for i in range(0, len(to_create), BULK_BATCH):
+        batch = to_create[i:i + BULK_BATCH]
+        Product.objects.bulk_create(batch, batch_size=BULK_BATCH)
+        created += len(batch)
+        if on_progress:
+            on_progress(created)
+
+    if updates and update_fields:
+        rows = list(updates.values())
+        for i in range(0, len(rows), BULK_BATCH):
+            Product.objects.bulk_update(rows[i:i + BULK_BATCH],
+                                        fields=list(update_fields), batch_size=BULK_BATCH)
+    updated = len(updates)
+
+    if to_create:
+        thumb_by_name = {g['name'][:200]: g.get('thumb') for g in games if g.get('thumb')}
+        images = []
+        for p in to_create:
+            url = steam_capsule_url(p.steam_app_id) if p.steam_app_id else None
+            if not url:
+                url = thumb_by_name.get(p.name)
+            if url:
+                images.append(ProductImage(product=p, external_url=url,
+                                           alt_text=p.name, is_primary=True, sort_order=0))
+        for i in range(0, len(images), BULK_BATCH):
+            ProductImage.objects.bulk_create(images[i:i + BULK_BATCH], batch_size=BULK_BATCH)
+
+    tag_pairs = []
+    games_with_genres = [g for g in games if g.get('genres')]
+    if games_with_genres:
+        tag_ids = {}
+        for g in games_with_genres:
+            for genre in g['genres'][:4]:
+                genre = (genre or '').strip()[:50]
+                if not genre:
+                    continue
+                if genre not in tag_ids:
+                    tag = get_or_create_tag(genre)
+                    if tag:
+                        tag_ids[genre] = tag.id
+        all_by_appid = dict(Product.objects.filter(
+            steam_app_id__in=[g['appid'] for g in games_with_genres if g.get('appid')]
+        ).values_list('steam_app_id', 'id')) if any(g.get('appid') for g in games_with_genres) else {}
+        through = Product.tags.through
+        seen_pairs = set()
+        for g in games_with_genres:
+            pid = (all_by_appid.get(g['appid']) if g.get('appid')
+                   else existing_by_title.get(normalize_title(g['name'])))
+            if not pid:
+                continue
+            for genre in g['genres'][:4]:
+                genre = genre.strip()[:50]
+                tid = tag_ids.get(genre)
+                if tid and (pid, tid) not in seen_pairs:
+                    seen_pairs.add((pid, tid))
+                    tag_pairs.append(through(product_id=pid, tag_id=tid))
+        if tag_pairs:
+            through.objects.bulk_create(tag_pairs, ignore_conflicts=True,
+                                        batch_size=BULK_BATCH)
+
+    return created, updated
+
+
+
+def _deal_to_game(deal):
+    normal = Decimal(str(deal.get('normalPrice') or '0'))
+    sale = Decimal(str(deal.get('salePrice') or '0'))
+    on_sale = deal.get('isOnSale') == '1' and 0 < sale < normal
+    appid = deal.get('steamAppID')
+    try:
+        appid = int(appid) if appid else None
+    except (TypeError, ValueError):
+        appid = None
+    mc = deal.get('metacriticScore')
+    try:
+        mc = int(mc) if mc else None
+    except (TypeError, ValueError):
+        mc = None
+    game_id = deal.get('gameID')
+    try:
+        game_id = int(game_id) if game_id else None
+    except (TypeError, ValueError):
+        game_id = None
+    return {
+        'name': (deal.get('title') or '').strip(),
+        'price_usd': normal if normal > 0 else sale,
+        'discount_usd': sale if on_sale else None,
+        'appid': appid,
+        'game_id': game_id,
+        'metacritic': mc,
+        'release': parse_ts(deal.get('releaseDate')),
+        'thumb': deal.get('thumb') or None,
+    }
+
+
+def cheapshark_game_deals(game_id):
+    """All store deals for one CheapShark game id (richest single-game fetch)."""
+    data = api.get_json(f'{CS_API}/deals', {'gameID': game_id},
+                        min_interval=0.75, retries=1, ok_429=False)
+    if data == 'RATE_LIMITED':
+        return None
+    return data
+
+
+def import_search_query(query):
+    """Live-import games matching a search query. Returns count created."""
+    from django.core.cache import cache
+
+    norm = normalize_title(query)
+    if len(norm) < 3:
+        return 0
+
+    miss_key = f'cs_search_miss:{norm}'
+    if cache.get(miss_key):
+        return 0
+    if not cache.add('cs_search_lock', 1, 10):
+        return 0
+
+    matches = api.get_json(f'{CS_API}/games', {'title': query},
+                           min_interval=0.75, retries=1, ok_429=False)
+    if matches == 'RATE_LIMITED':
+        cache.set(miss_key, 1, 60)
+        return 0
+    if not matches:
+        cache.set(miss_key, 1, 300)
+        return 0
+
+    candidates = []
+    for m in matches[:8]:
+        appid = m.get('steamAppID')
+        name = (m.get('external') or '').strip()
+        if appid:
+            exists = Product.objects.filter(steam_app_id=appid).exists()
+        elif name:
+            exists = Product.objects.filter(name__iexact=name).exists()
+        else:
+            exists = True
+        if not exists:
+            candidates.append(m)
+    if not candidates:
+        return 0
+
+    games = []
+    for m in candidates[:6]:
+        deals = cheapshark_game_deals(m['gameID'])
+        if not deals or not isinstance(deals, list):
+            continue
+        best = None
+        for d in deals:
+            try:
+                if Decimal(str(d.get('normalPrice') or '0')) > 0:
+                    if best is None or Decimal(str(d.get('savings') or 0)) > Decimal(str(best.get('savings') or 0)):
+                        best = d
+            except Exception:
+                continue
+        game = _deal_to_game(best or deals[0])
+        if game['name']:
+            games.append(game)
+
+    created, _ = upsert_games(games, data_source='search_import')
+
+    if created:
+        enrich_with_steam(Product.objects.filter(
+            data_source='search_import', steam_enriched=False,
+            steam_app_id__isnull=False).order_by('-created_at')[:6])
+    return created
+
+
+
+def strip_html(html):
+    text = re.sub(r'<br\s*/?>', '\n', html or '')
+    text = re.sub(r'</p>\s*<p[^>]*>', '\n\n', text)
+    text = re.sub(r'<[^>]+>', '', text)
+    text = (text.replace('&nbsp;', ' ').replace('&amp;', '&')
+                .replace('&quot;', '"').replace('&#39;', "'"))
+    return re.sub(r'\n{3,}', '\n\n', text).strip()
+
+
+def parse_steam_date(raw):
+    if not raw:
+        return None
+    raw = raw.strip()
+    for fmt in ('%d %b, %Y', '%b %d, %Y', '%d %B, %Y', '%B %d, %Y', '%Y'):
+        try:
+            return datetime.strptime(raw, fmt).replace(tzinfo=dt_timezone.utc)
+        except ValueError:
+            continue
+    return None
+
+
+def enrich_with_steam(products, limit=200, delay=0.65):
+    """Fill genres/description/release from the official Steam store API."""
+    enriched = 0
+    for p in products[:limit]:
+        if not p.steam_app_id or p.steam_enriched:
+            continue
+        data = api.get_json(STEAM_APPDETAILS, {'appids': p.steam_app_id},
+                            min_interval=delay, retries=2, ok_429=False)
+        if data == 'RATE_LIMITED':
+            print('    ! Steam throttling — pausing enrichment for 60s')
+            time.sleep(60)
+            continue
+        if not data:
+            continue
+        payload = data.get(str(p.steam_app_id), {})
+        if not (payload.get('success') and payload.get('data')):
+            p.steam_enriched = True
+            p.save(update_fields=['steam_enriched'])
+            continue
+        d = payload['data']
+
+        stype = (d.get('type') or '').strip().lower()
+        if stype:
+            p.product_type = (Product.PRODUCT_TYPE_APPLICATION
+                              if stype in STEAM_APPLICATION_TYPES
+                              else Product.PRODUCT_TYPE_GAME)
+        mc = (d.get('metacritic') or {}).get('score')
+        if isinstance(mc, int) and 0 < mc <= 100:
+            p.metacritic_score = mc
+
+        genres = [g['description'] for g in d.get('genres', [])]
+        short = (d.get('short_description') or '')[:500]
+        about = strip_html(d.get('detailed_description') or d.get('about_the_game') or '')
+        desc_parts = [short, ''] if short else []
+        if about:
+            desc_parts.append(about[:1200].rsplit(' ', 1)[0] + ('…' if len(about) > 1200 else ''))
+            desc_parts.append('')
+        desc_parts.append('Key details:')
+        if genres:
+            desc_parts.append(f'- Genres: {", ".join(genres)}')
+        if d.get('developers'):
+            desc_parts.append(f'- Developer: {", ".join(d["developers"])}')
+        if d.get('publishers'):
+            desc_parts.append(f'- Publisher: {", ".join(d["publishers"])}')
+        desc_parts.append('- Format: Digital download key (no shipping required)')
+        desc_parts.append('')
+        desc_parts.append('Your key is delivered by email immediately after checkout.')
+
+        p.description = '\n'.join(desc_parts)
+        if short:
+            p.short_description = short
+        released = parse_steam_date((d.get('release_date') or {}).get('date'))
+        if released:
+            p.published_at = released
+        p.steam_enriched = True
+        p.save(update_fields=['description', 'short_description', 'published_at',
+                              'steam_enriched', 'product_type', 'metacritic_score'])
+
+        through = Product.tags.through
+        pairs = []
+        for genre in genres[:4]:
+            tag = get_or_create_tag(genre)
+            if tag:
+                pairs.append(through(product_id=p.id, tag_id=tag.id))
+        if pairs:
+            through.objects.bulk_create(pairs, ignore_conflicts=True)
+
+        if p.is_featured:
+            existing = p.images.count()
+            shots = (d.get('screenshots') or [])[:2]
+            imgs = [ProductImage(product=p, external_url=s.get('path_full'),
+                                 alt_text=f'{p.name} screenshot {i + 1}',
+                                 sort_order=existing + i)
+                    for i, s in enumerate(shots) if s.get('path_full')]
+            if imgs:
+                ProductImage.objects.bulk_create(imgs)
+
+        enriched += 1
+    return enriched
+
+
+
+def steamspy_page(page):
+    """One page of SteamSpy's full catalog (~1000 apps)."""
+    data = api.get_json(STEAMSPY_API, {'request': 'all', 'page': page},
+                        min_interval=16, retries=3)
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
+def steamspy_to_game(app):
+    price_cents = Decimal(str(app.get('price') or '0'))
+    initial_cents = Decimal(str(app.get('initialprice') or '0'))
+    discount_pct = int(app.get('discount') or 0)
+    price = price_cents / 100 if price_cents else Decimal('0')
+    initial = initial_cents / 100 if initial_cents else price
+    on_sale = discount_pct > 0 and 0 < price < initial
+    return {
+        'name': (app.get('name') or '').strip(),
+        'price_usd': initial if initial > 0 else price,
+        'discount_usd': price if on_sale else None,
+        'appid': app.get('appid'),
+        'game_id': None,
+        'metacritic': None,
+        'release': None,
+        'thumb': steam_capsule_url(app.get('appid')) if app.get('appid') else None,
+    }
+
+
+def steamspy_genre_rows(genre):
+    """Every app SteamSpy lists under a genre, with its full data row.
+
+    Returns ``{int(appid): {...}}`` where each value is SteamSpy's per-app dict
+    (``name``, ``owners``, ``positive``, ...). Used both to tag games by genre
+    and to pull real ``owners`` popularity for ranking, and to enumerate the
+    non-game software genres for classification — all from the same endpoint.
+    """
+    data = api.get_json(STEAMSPY_API, {'request': 'genre', 'genre': genre},
+                        min_interval=16, retries=3)
+    if not isinstance(data, dict):
+        return {}
+    rows = {}
+    for appid, row in data.items():
+        try:
+            rows[int(appid)] = row if isinstance(row, dict) else {}
+        except (TypeError, ValueError):
+            continue
+    return rows
+
+
+def steamspy_genre_apps(genre):
+    """Top ~1000 apps in a SteamSpy genre. Returns {appid: name}."""
+    return {appid: row.get('name', '')
+            for appid, row in steamspy_genre_rows(genre).items()}
+

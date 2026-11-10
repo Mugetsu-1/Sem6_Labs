@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>@ViewData["Title"] - Models</title>
+</head>
+<body>
+    <h2>Model Binding &amp; Validation Lab</h2>
+    <nav>
+        <a asp-area="" asp-controller="Binding" asp-action="Index">Home</a> |
+        <a asp-area="" asp-controller="Binding" asp-action="Create">Form Binding</a> |
+        <a asp-area="" asp-controller="Binding" asp-action="Route" asp-route-id="3">Route Data</a> |
+        <a asp-area="" asp-controller="Binding" asp-action="Query" asp-route-q="nepal">Query String</a>
+    </nav>
+    <hr />
+    @RenderBody()
+</body>
+</html>

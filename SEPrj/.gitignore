@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build output
+frontend/dist/
+backend/coverage/
+
+# Env & secrets (all .env variants; .env.example is tracked on purpose)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+
+# AI-assistant local session state
+.claude/
+
+# Local working note — full chat-session log, not part of the deliverable
+CHAT_SESSION.md
+
+# Root project metadata is tracked alongside the source tree.
+
+# Backend: keep source files, manifests, and lockfiles; ignore env files and deps
+/backend/.env
+
+# Frontend: keep source files, manifests, and lockfiles; ignore env files and deps
+/frontend/.env\.example
+
+# Screenshots: keep only images and readme
+/screenshots/README\.md

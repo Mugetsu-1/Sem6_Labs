@@ -1,0 +1,39 @@
+# ---------------------------------------------------------------------
+# Whitelist-style .gitignore
+# Everything is ignored by default; only the allow-list rules below keep
+# certain files. This keeps the repository clean for submission by
+# committing ONLY the lab source files plus this README and .gitignore.
+# ---------------------------------------------------------------------
+
+# Ignore everything by default.
+*
+
+# Keep folders searchable so allow-list rules can apply inside them.
+!*/
+
+# ---------------------------------------------------------------------
+# Keep: lab source files
+# ---------------------------------------------------------------------
+!*.cpp      # C++ sources (Lab 1: Q1-Q15 and Lab 2: Q16-Q26)
+!*.l        # Flex specifications (Lexer.l, F1_parser.l)
+!*.y        # Bison grammars (F2_parser.y)
+
+# ---------------------------------------------------------------------
+# Keep: project documentation and ignore rules
+# ---------------------------------------------------------------------
+!README.md
+!.gitignore
+
+# ---------------------------------------------------------------------
+# Generated / build artifacts (documented for clarity; already excluded
+# by the whitelist above, these only make the intent explicit):
+#   active_cpp_run.exe   -> VS Code / task build output
+#   lex.yy.c             -> flex output
+#   F2_parser.tab.c/.h   -> bison output
+#   .vscode/             -> local, machine-specific editor config
+# ---------------------------------------------------------------------
+*.exe
+lex.yy.c
+F2_parser.tab.c
+F2_parser.tab.h
+.vscode/

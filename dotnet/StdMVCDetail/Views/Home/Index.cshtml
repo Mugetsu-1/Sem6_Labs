@@ -1,0 +1,21 @@
+@{
+    ViewData["Title"] = "Home";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Student MVC Project</h1>
+    <p>
+        This is a simple ASP.NET Core MVC project built for the Student module.
+        It shows how the Model (Student) is handled by the Controller
+        (StudentController) and displayed using Views.
+    </p>
+    <p>The project demonstrates the following actions:</p>
+    <ul class="list-group text-start mx-auto" style="max-width: 400px;">
+        <li class="list-group-item">List all students</li>
+        <li class="list-group-item">Show student details</li>
+        <li class="list-group-item">Add a new student</li>
+        <li class="list-group-item">Edit a student</li>
+        <li class="list-group-item">Delete a student</li>
+    </ul>
+    <a class="btn btn-primary mt-3" asp-controller="Student" asp-action="Index">Go to Student List</a>
+</div>

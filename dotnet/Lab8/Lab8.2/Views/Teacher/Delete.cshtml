@@ -1,0 +1,18 @@
+@model Lab8._2.Models.Teacher
+@{
+    ViewData["Title"] = "Delete Teacher";
+}
+
+<h2>Delete Teacher</h2>
+<div>
+    <h4>Are you sure you want to delete @Model.Name?</h4>
+    <p>Id: @Model.Id</p>
+    <p>Email: @Model.Email</p>
+    <p>Phone: @Model.Phone</p>
+    <p>Subject: @Model.Subject</p>
+</div>
+<form asp-action="Delete">
+    <input type="hidden" asp-for="Id" />
+    <button type="submit" class="btn btn-danger">Delete</button>
+    <a asp-action="Index" class="btn btn-secondary">Back to List</a>
+</form>

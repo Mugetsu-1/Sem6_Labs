@@ -1,0 +1,42 @@
+@model IEnumerable<Student>
+@inject CollegeInfoService CollegeInfo
+@{
+    ViewData["Title"] = "Student List";
+    int totalStudents = Model.Count();
+    string message = "Student records are available.";
+    if (totalStudents == 0)
+    {
+        message = "No student records found.";
+    }
+}
+<h1>Student Management</h1>
+<h3>@CollegeInfo.CollegeName()</h3>
+<p>@CollegeInfo.CollegeAddress()</p>
+<hr />
+<p><strong>College:</strong> @ViewData["College"]</p>
+<p><strong>Total Students:</strong> @ViewData["TotalStudents"]</p>
+<p><strong>Message:</strong> @ViewBag.Message</p>
+<p><strong>Current Year:</strong> @ViewBag.CurrentYear</p>
+<p>Today is:@DateTime.Now.ToString("yyyy-MM-dd")</p>
+@if (totalStudents > 0)
+{
+    <p>@message</p>
+}
+else
+{
+    <p>No students are currently registered.</p>
+}
+<hr />
+<h2>Student Records</h2>
+@foreach (var student in Model)
+{
+    @await Html.PartialAsync("_StudentCard", student)
+}
+<hr />
+<a asp-action="Create">Add New Student</a>
+@section Scripts
+{
+    <script>
+        alert("Student Index page loaded.");
+    </script>
+}

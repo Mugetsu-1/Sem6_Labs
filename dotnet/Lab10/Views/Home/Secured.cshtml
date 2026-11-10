@@ -1,0 +1,13 @@
+@model string
+
+@{
+    ViewData["Title"] = "Secured";
+}
+
+<h1 class="bg-info text-white">Secured</h1>
+<p>@Model</p>
+<p>This page is decorated with the [Authorize] attribute, so only a registered (logged in) user can access it.</p>
+@if (User?.Identity?.IsAuthenticated ?? false)
+{
+    <a asp-controller="Account" asp-action="Logout" class="btn btn-danger">Logout</a>
+}

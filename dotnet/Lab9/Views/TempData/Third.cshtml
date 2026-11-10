@@ -1,0 +1,12 @@
+@{
+    ViewData["Title"] = "Third";
+    var userId = TempData["UserId"]?.ToString();
+}
+
+<h1>Third</h1>
+User Id : @userId
+<p>TempData Value is available in Third Action or View depending on the access pattern in second</p>
+<p>if accessed as var userId = TempData["UserId"]?.ToString(); then not available</p>
+<p>if accessed as var userId = TempData["UserId"]?.ToString(); with TempData.Keep(); then available</p>
+<p>if accessed as var userId = TempData.Peek("UserId")?.ToString(); then available</p>
+<a class="btn btn-success" asp-controller="TempData" asp-action="First">Go First</a>

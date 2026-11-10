@@ -1,0 +1,43 @@
+# Deploy AzureProject (ASP.NET Core / .NET 10) to Azure App Service.
+#
+# One-time setup:
+#   1. Create the Web App once (portal, Visual Studio, or ./AzureProject/deploy-azure.ps1).
+#      If "region has quota of 0" appears, pick the B1 tier - see AzureProject/DEPLOYMENT.md.
+#   2. Web App -> Overview -> "Get publish profile" (downloads an .xml file).
+#   3. GitHub repo -> Settings -> Secrets and variables -> Actions -> New repository secret:
+#        name  = AZURE_WEBAPP_PUBLISH_PROFILE
+#        value = <paste the entire contents of the downloaded .xml>
+#   4. Set AZURE_WEBAPP_NAME below to your Web App's name, then push to main.
+
+name: Deploy to Azure App Service
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:      # allow manual runs from the Actions tab
+
+env:
+  AZURE_WEBAPP_NAME: dotnet-demo-app          # <-- CHANGE to your Web App name
+  DOTNET_VERSION: '10.0.x'
+  PROJECT_PATH: AzureProject/AzureProject.csproj
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Publish
+        run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -o ${{ github.workspace }}/publish
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ${{ github.workspace }}/publish

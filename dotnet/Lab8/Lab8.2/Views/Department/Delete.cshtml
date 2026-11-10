@@ -1,0 +1,17 @@
+@model Lab8._2.Models.Department
+@{
+    ViewData["Title"] = "Delete Department";
+}
+
+<h2>Delete Department</h2>
+<div>
+    <h4>Are you sure you want to delete @Model.Name?</h4>
+    <p>Id: @Model.Id</p>
+    <p>Head: @Model.Head</p>
+    <p>Established: @Model.Established</p>
+</div>
+<form asp-action="Delete">
+    <input type="hidden" asp-for="Id" />
+    <button type="submit" class="btn btn-danger">Delete</button>
+    <a asp-action="Index" class="btn btn-secondary">Back to List</a>
+</form>

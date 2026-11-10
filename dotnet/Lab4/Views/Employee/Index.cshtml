@@ -1,0 +1,25 @@
+@{
+    ViewData["Title"] = "Employee Management";
+}
+<h1>Employee Management</h1>
+<p>Employee Controller is working successfully.</p>
+<hr />
+<h3>Employee Actions</h3>
+<p>
+    <a asp-action="Information">Employee Information</a>
+</p>
+<p>
+    <a asp-action="EmployeeData">Employee JSON Data</a>
+</p>
+<hr />
+<h3>HTTP DELETE</h3>
+<button type="button" onclick="deleteEmployee()">Delete Employee - HTTP DELETE</button>
+<script>
+    function deleteEmployee() {
+        fetch('/Employee/DeleteEmployee', {
+            method: 'DELETE'
+        })
+        .then(response => response.text())
+        .then(data => alert(data));
+    }
+</script>

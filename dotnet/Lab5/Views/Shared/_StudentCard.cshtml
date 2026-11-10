@@ -1,0 +1,23 @@
+@model Lab5.Models.Student
+<div class="student-card">
+    <h3>@Model.Name</h3>
+    <p>
+        <strong>Student ID:</strong>
+        @Model.StudentId
+    </p>
+    <p>
+        <strong>Program:</strong>
+        @Model.Program
+    </p>
+    <p>
+        <strong>Semester:</strong>
+        @Model.Semester
+    </p>
+    <p>
+        <strong>GPA:</strong>
+        @Model.GPA
+    </p>
+    <a asp-controller="Student" asp-action="Details" asp-route-id="@Model.StudentId">
+        View Details
+    </a>
+</div>

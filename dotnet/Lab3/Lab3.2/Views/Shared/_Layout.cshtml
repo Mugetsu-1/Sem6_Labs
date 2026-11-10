@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Lab3._2</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+</head>
+<body>
+    <nav>
+        <a class="brand" asp-controller="Home" asp-action="Index">Lab 3.2</a>
+        <a asp-controller="Home" asp-action="Index">Home</a>
+        <a asp-controller="Student" asp-action="Index">Students</a>
+    </nav>
+    <div class="container">
+        @RenderBody()
+    </div>
+    <footer>
+        Lab 3.2
+    </footer>
+</body>
+</html>

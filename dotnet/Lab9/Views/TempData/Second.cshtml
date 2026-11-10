@@ -1,0 +1,10 @@
+@{
+    ViewData["Title"] = "Second";
+    var userId = TempData["UserId"]?.ToString(); //TempData.Keep();
+    //var userId = TempData.Peek("UserId")?.ToString();
+}
+
+<h1>Second</h1>
+User Id : @userId
+<p>TempData Value always available in Second Action or View</p>
+<a class="btn btn-success" asp-controller="TempData" asp-action="Third">Go Third</a>

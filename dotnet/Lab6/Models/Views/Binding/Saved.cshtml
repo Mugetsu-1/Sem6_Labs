@@ -1,0 +1,10 @@
+@model Models.Models.UserBinding
+@{
+    ViewData["Title"] = "Saved";
+}
+<h3>Saved (ModelState.IsValid passed)</h3>
+<p>Name: @Model.Name</p>
+<p>Email: @Model.Email</p>
+<p>Age: @Model.Age</p>
+<p>Secret (still default, [BindNever]): @Model.Secret</p>
+<p><a asp-controller="Binding" asp-action="Index">Home</a></p>

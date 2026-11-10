@@ -1,0 +1,32 @@
+@model IEnumerable<Lab8._2.Models.Department>
+@{
+    ViewData["Title"] = "Departments";
+}
+
+<h1>Departments <a asp-action="Create" class="btn btn-sm btn-secondary">Create New</a></h1>
+<table class="table table-bordered table-sm table-striped">
+    <thead>
+        <tr>
+            <th>Id</th>
+            <th>Name</th>
+            <th>Head</th>
+            <th>Established</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@item.Id</td>
+                <td>@item.Name</td>
+                <td>@item.Head</td>
+                <td>@item.Established</td>
+                <td>
+                    <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |
+                    <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

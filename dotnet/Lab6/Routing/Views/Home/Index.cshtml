@@ -1,0 +1,14 @@
+@{
+    ViewData["Title"] = "Routing Home";
+}
+<h3>Routing Demo Links</h3>
+<ul>
+    <li>Convention route (defaults + optional id): <a asp-controller="Home" asp-action="Index">/ (Home/Index)</a></li>
+    <li>Custom route + int constraint: <a href="/order/5">/order/5</a> (5 works, abc is rejected)</li>
+    <li>Custom route + regex constraint (3 digits): <a href="/code/123">/code/123</a></li>
+    <li>Custom route + optional parameter: <a href="/products">/products</a> | <a href="/products/books">/products/books</a></li>
+    <li>Attribute routing [Route]: <a href="/welcome">/welcome</a></li>
+    <li>Attribute routing + token replacement: <a href="/Home/Token">/Home/Token</a></li>
+    <li>Attribute routing + [HttpGet]: <a href="/secure/info">/secure/info</a></li>
+    <li>Attribute routing + inline int constraint: <a href="/product/9">/product/9</a></li>
+</ul>

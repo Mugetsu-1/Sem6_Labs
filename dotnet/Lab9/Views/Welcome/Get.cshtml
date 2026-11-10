@@ -1,0 +1,14 @@
+@{
+    ViewData["Title"] = "Get";
+}
+
+<h2>Get</h2>
+<p>Getting session data in Get action or view that is set by Index action of Welcome controller</p>
+<hr />
+<div>
+    <p>Name: @Context.Session.GetString("Name")</p>
+    <p>Age: @Context.Session.GetInt32("Age")</p>
+</div>
+<div>
+    <a asp-action="Index">Back to List</a>
+</div>

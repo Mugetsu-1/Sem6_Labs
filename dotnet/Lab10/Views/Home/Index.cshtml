@@ -1,0 +1,19 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Lab 10 - ASP.NET Core Identity</h1>
+
+    @if (User?.Identity?.IsAuthenticated ?? false)
+    {
+        <p>You are logged in as <strong>@User.Identity!.Name</strong>.</p>
+        <a asp-controller="Home" asp-action="Secured" class="btn btn-primary">Go to Secured Page</a>
+    }
+    else
+    {
+        <p>You are not logged in. Please register or login to access the secured page.</p>
+        <a asp-controller="Account" asp-action="Register" class="btn btn-primary">Register</a>
+        <a asp-controller="Account" asp-action="Login" class="btn btn-secondary">Login</a>
+    }
+</div>

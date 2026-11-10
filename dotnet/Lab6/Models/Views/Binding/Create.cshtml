@@ -1,0 +1,21 @@
+@model Models.Models.UserBinding
+@{
+    ViewData["Title"] = "Create User";
+}
+<h3>Form Binding with [FromForm]</h3>
+<p>The model property <code>Secret</code> is marked [BindNever], so submitted values are ignored.</p>
+<form asp-controller="Binding" asp-action="Create" method="post">
+    <div asp-validation-summary="@ValidationSummary.All"></div>
+    <p><label asp-for="Name">Name</label><br />
+       <input asp-for="Name" />
+       <span asp-validation-for="Name"></span></p>
+    <p><label asp-for="Email">Email</label><br />
+       <input asp-for="Email" />
+       <span asp-validation-for="Email"></span></p>
+    <p><label asp-for="Age">Age (18-60)</label><br />
+       <input asp-for="Age" type="number" min="18" max="60" />
+       <span asp-validation-for="Age"></span></p>
+    <p><label asp-for="Secret">Secret (ignored)</label><br />
+       <input asp-for="Secret" /></p>
+    <button type="submit">Save User</button>
+</form>

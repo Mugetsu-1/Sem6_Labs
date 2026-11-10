@@ -1,0 +1,42 @@
+@model EFExample.Models.Student
+@{
+    ViewData["Title"] = "Details";
+}
+
+<h1>Student Details</h1>
+<hr />
+<dl class="row">
+    <dt class="col-sm-2">@Html.DisplayNameFor(model => model.Id)</dt>
+    <dd class="col-sm-10">@Html.DisplayFor(model => model.Id)</dd>
+
+    <dt class="col-sm-2">@Html.DisplayNameFor(model => model.Name)</dt>
+    <dd class="col-sm-10">@Html.DisplayFor(model => model.Name)</dd>
+
+    <dt class="col-sm-2">@Html.DisplayNameFor(model => model.Roll)</dt>
+    <dd class="col-sm-10">@Html.DisplayFor(model => model.Roll)</dd>
+
+    <dt class="col-sm-2">@Html.DisplayNameFor(model => model.Address)</dt>
+    <dd class="col-sm-10">@Html.DisplayFor(model => model.Address)</dd>
+
+    <dt class="col-sm-2">@Html.DisplayNameFor(model => model.Email)</dt>
+    <dd class="col-sm-10">@Html.DisplayFor(model => model.Email)</dd>
+
+    <dt class="col-sm-2">@Html.DisplayNameFor(model => model.Phone)</dt>
+    <dd class="col-sm-10">@Html.DisplayFor(model => model.Phone)</dd>
+
+    <dt class="col-sm-2">@Html.DisplayNameFor(model => model.DOB)</dt>
+    <dd class="col-sm-10">@Html.DisplayFor(model => model.DOB)</dd>
+
+    <dt class="col-sm-2">@Html.DisplayNameFor(model => model.Age)</dt>
+    <dd class="col-sm-10">@Html.DisplayFor(model => model.Age)</dd>
+
+    <dt class="col-sm-2">@Html.DisplayNameFor(model => model.Semester)</dt>
+    <dd class="col-sm-10">@Html.DisplayFor(model => model.Semester)</dd>
+
+    <dt class="col-sm-2">@Html.DisplayNameFor(model => model.GPA)</dt>
+    <dd class="col-sm-10">@Html.DisplayFor(model => model.GPA)</dd>
+</dl>
+<div>
+    <a asp-action="Edit" asp-route-id="@Model?.Id">Edit</a> |
+    <a asp-action="Index">Back to List</a>
+</div>

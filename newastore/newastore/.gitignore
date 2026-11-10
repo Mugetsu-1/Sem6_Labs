@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+*.egg-info/
+.pytest_cache/
+.coverage
+.coverage.*
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+*.py,cover
+.tox/
+
+# Django
+db.sqlite3
+db.sqlite3-journal
+/media/
+/staticfiles/
+*.sqlite3
+*.sqlite3-journal
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE / OS
+.idea/
+.vscode/
+.claude/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local import and generated-data markers
+.steamspy_progress
+steamspy_progress*
+.bootstrap_state.json
+
+# Build and packaging output
+build/
+dist/
+pip-wheel-metadata/
+
+# Database dumps
+*.sql

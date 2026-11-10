@@ -1,0 +1,31 @@
+@{
+    ViewData["Title"] = "Student Management";
+}
+<h1>Student Management</h1>
+<p>Student Controller is working successfully.</p>
+<hr />
+<h3>Student Actions</h3>
+<p>
+    <a asp-action="Information">Student Information</a>
+</p>
+<p>
+    <a asp-action="StudentData">Student JSON Data</a>
+</p>
+<p>
+    <a asp-action="Empty">Empty Result</a>
+</p>
+<p>
+    <a asp-action="GoToTeacher">Redirect to Teacher</a>
+</p>
+<p>
+    <a asp-action="StudentDetails">Student Details using ActionName</a>
+</p>
+<hr />
+<h3>HTTP GET and POST</h3>
+<form asp-action="GetStudents" method="get">
+    <button type="submit">Get Students - HTTP GET</button>
+</form>
+<br />
+<form asp-action="AddStudent" method="post">
+    <button type="submit">Add Student - HTTP POST</button>
+</form>

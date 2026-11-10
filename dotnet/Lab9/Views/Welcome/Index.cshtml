@@ -1,0 +1,11 @@
+@{
+    ViewData["Title"] = "Index";
+}
+
+<h1>Index</h1>
+<hr />
+<p>Session Data Set by Index action of Welcome Controller</p>
+<p>Name: @Context.Session.GetString("Name")</p>
+<p>Age: @Context.Session.GetInt32("Age")</p>
+<hr />
+<a asp-controller="Welcome" asp-action="Get">Get Session Data</a>

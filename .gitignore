@@ -1,0 +1,24 @@
+# Local environments and machine-specific state
+.venv/
+**/.venv/
+**/.claude/
+**/.env
+**/.env.*
+!.env.example
+
+# Dependencies and generated output
+node_modules/
+**/node_modules/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.sqlite3
+**/media/
+**/bin/
+**/obj/
+**/Debug/
+**/Release/
+
+# Nested repository metadata; projects are consolidated into this repository
+**/.git/
+**/.git-old/

@@ -1,0 +1,12 @@
+@{
+    ViewData["Title"] = "Anchor Tag Helper";
+    var query = new Dictionary<string, string>();
+    query["sort"] = "name";
+}
+<h3>Anchor Tag Helper</h3>
+<p><a asp-controller="Demo" asp-action="Register">asp-controller + asp-action</a></p>
+<p><a asp-controller="Demo" asp-action="Done" asp-route-id="7">asp-route-id (route value)</a></p>
+<p><a asp-controller="Demo" asp-action="Done" asp-route-id="3" asp-fragment="bottom">asp-fragment = #bottom</a></p>
+<p><a asp-area="admin" asp-controller="Home" asp-action="Index">asp-area = admin</a></p>
+<p><a asp-host="www.example.com" asp-protocol="https" asp-controller="Home" asp-action="Index">asp-host + asp-protocol</a></p>
+<p><a asp-controller="Demo" asp-action="Done" asp-route-id="5" asp-all-route-data="@query">asp-all-route-data</a></p>

@@ -1,0 +1,23 @@
+@model IEnumerable<Lab3._3.Models.Employee>
+@{
+    ViewData["Title"] = "Employees";
+}
+
+<h1>Employee List</h1>
+<table class="table table-bordered">
+    <thead>
+        <tr><th>ID</th><th>Name</th><th>Department</th><th>Salary</th><th></th></tr>
+    </thead>
+    <tbody>
+        @foreach (var e in Model)
+        {
+            <tr>
+                <td>@e.Id</td>
+                <td>@e.Name</td>
+                <td>@e.Department</td>
+                <td>@e.Salary</td>
+                <td><a asp-action="Details" asp-route-id="@e.Id">Details</a></td>
+            </tr>
+        }
+    </tbody>
+</table>

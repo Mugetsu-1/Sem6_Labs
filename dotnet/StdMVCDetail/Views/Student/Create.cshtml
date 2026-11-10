@@ -1,0 +1,13 @@
+@model Student
+@{
+    ViewData["Title"] = "Create Student";
+    ViewData["Submit"] = "Save";
+}
+
+<h2>Add New Student</h2>
+
+<partial name="_StudentForm" model="Model" />
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

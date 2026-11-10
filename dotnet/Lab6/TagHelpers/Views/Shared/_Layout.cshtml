@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>@ViewData["Title"] - TagHelpers</title>
+</head>
+<body>
+    <h2>Tag Helpers Lab</h2>
+    <nav>
+        <a asp-area="" asp-controller="Home" asp-action="Index">Home</a> |
+        <a asp-area="" asp-controller="Demo" asp-action="Register">Register Form</a>
+    </nav>
+    <hr />
+    @RenderBody()
+</body>
+</html>

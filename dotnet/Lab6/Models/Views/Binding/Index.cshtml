@@ -1,0 +1,10 @@
+@{
+    ViewData["Title"] = "Model Binding Demo";
+}
+<h3>Model Binding Sources</h3>
+<p>Data is bound from three HTTP request sources:</p>
+<ul>
+    <li>HTML Form &rarr; <a asp-controller="Binding" asp-action="Create">Create (uses [FromForm] + validation)</a></li>
+    <li>Route Data &rarr; <a asp-controller="Binding" asp-action="Route" asp-route-id="5">/Binding/Route/5 (uses [FromRoute])</a></li>
+    <li>Query String &rarr; <a asp-controller="Binding" asp-action="Query" asp-route-q="hello">/Binding/Query?q=hello (uses [FromQuery])</a></li>
+</ul>

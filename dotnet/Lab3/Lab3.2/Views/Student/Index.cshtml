@@ -1,0 +1,23 @@
+@model IEnumerable<Lab3._2.Models.Student>
+@{
+    ViewData["Title"] = "Students";
+}
+
+<h1>Student List</h1>
+<table class="table table-bordered">
+    <thead>
+        <tr><th>ID</th><th>Name</th><th>Age</th><th>Course</th><th></th></tr>
+    </thead>
+    <tbody>
+        @foreach (var s in Model)
+        {
+            <tr>
+                <td>@s.Id</td>
+                <td>@s.Name</td>
+                <td>@s.Age</td>
+                <td>@s.Course</td>
+                <td><a asp-action="Details" asp-route-id="@s.Id">Details</a></td>
+            </tr>
+        }
+    </tbody>
+</table>

@@ -1,0 +1,24 @@
+@model TagHelpers.Models.User
+@{
+    ViewData["Title"] = "Register";
+}
+<h3>Form, Input, Label and Validation Tag Helpers</h3>
+<form asp-controller="Demo" asp-action="Register" asp-antiforgery="true" method="post">
+    <div asp-validation-summary="@ValidationSummary.All"></div>
+    <p>
+        <label asp-for="Name">Name</label><br />
+        <input asp-for="Name" />
+        <span asp-validation-for="Name"></span>
+    </p>
+    <p>
+        <label asp-for="Email">Email</label><br />
+        <input asp-for="Email" />
+        <span asp-validation-for="Email"></span>
+    </p>
+    <p>
+        <label asp-for="Rating">Rating (1-10)</label><br />
+        <input asp-for="Rating" type="number" min="1" max="10" />
+        <span asp-validation-for="Rating"></span>
+    </p>
+    <button type="submit">Register</button>
+</form>

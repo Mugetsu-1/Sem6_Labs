@@ -1,0 +1,38 @@
+@{
+    ViewData["Title"] = "Teacher Management";
+}
+<h1>Teacher Management</h1>
+<p>Teacher Controller is working successfully.</p>
+<hr />
+<h3>Teacher Actions</h3>
+<p>
+    <a asp-action="Information">Teacher Information</a>
+</p>
+<p>
+    <a asp-action="TeacherData">Teacher JSON Data</a>
+</p>
+<hr />
+<h3>HTTP GET, POST and PUT</h3>
+<form asp-action="GetTeachers" method="get">
+    <button type="submit">Get Teachers - HTTP GET</button>
+</form>
+<br />
+<form asp-action="AddTeacher" method="post">
+    <button type="submit">
+        Add Teacher - HTTP POST
+    </button>
+</form>
+<br />
+<button type="button" onclick="updateTeacher()">
+    Update Teacher - HTTP PUT
+</button>
+<script>
+    function updateTeacher()
+    {
+        fetch('/Teacher/UpdateTeacher', {
+            method: 'PUT'
+        })
+        .then(response => response.text())
+        .then(data => alert(data));
+    }
+</script>

@@ -1,0 +1,28 @@
+﻿@{
+    ViewData["Title"] = "Lab 4 - Controllers, Actions, Action Results and Action Selectors";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="container-main">
+    <header class="page-header">
+        <h1>Lab 4 &mdash; Controllers, Actions, Action Results & Action Selectors</h1>
+        <p>ASP.NET Core MVC demonstration of controller creation techniques, action result types, and action selectors.</p>
+    </header>
+
+    <div class="controller-grid">
+        <article class="controller-card">
+            <h2>Student</h2>
+            <a asp-controller="Student" asp-action="Index" class="btn-link-plain">Open Student Controller</a>
+        </article>
+
+        <article class="controller-card">
+            <h2>Employee</h2>
+            <a asp-controller="Employee" asp-action="Index" class="btn-link-plain">Open Employee Controller</a>
+        </article>
+
+        <article class="controller-card">
+            <h2>Teacher</h2>
+            <a asp-controller="Teacher" asp-action="Index" class="btn-link-plain">Open Teacher Controller</a>
+        </article>
+    </div>
+</div>

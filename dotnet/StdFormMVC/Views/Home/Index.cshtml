@@ -1,0 +1,70 @@
+@model List<Student>
+@{
+    ViewData["Title"] = "Student Form";
+}
+
+<h2>Student Details Form</h2>
+
+@if (!ViewData.ModelState.IsValid)
+{
+    <div asp-validation-summary="All" class="text-danger"></div>
+}
+
+<form asp-action="Index" method="post">
+    <table class="table table-bordered">
+        <tr>
+            <td><label>Student Name</label></td>
+            <td><input name="Name" class="form-control" /></td>
+        </tr>
+        <tr>
+            <td><label>Roll No</label></td>
+            <td><input name="RollNo" class="form-control" /></td>
+        </tr>
+        <tr>
+            <td><label>Age</label></td>
+            <td><input name="Age" class="form-control" /></td>
+        </tr>
+        <tr>
+            <td><label>Department</label></td>
+            <td><input name="Department" class="form-control" /></td>
+        </tr>
+        <tr>
+            <td><label>Address</label></td>
+            <td><input name="Address" class="form-control" /></td>
+        </tr>
+        <tr>
+            <td><label>GPA</label></td>
+            <td><input name="GPA" class="form-control" /></td>
+        </tr>
+    </table>
+    <button type="submit" class="btn btn-primary">Submit</button>
+</form>
+
+<hr />
+
+<h3>Student List</h3>
+<table class="table table-bordered">
+    <thead class="table-dark">
+        <tr>
+            <th>Name</th>
+            <th>Roll No</th>
+            <th>Age</th>
+            <th>Department</th>
+            <th>Address</th>
+            <th>GPA</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var s in Model)
+        {
+            <tr>
+                <td>@s.Name</td>
+                <td>@s.RollNo</td>
+                <td>@s.Age</td>
+                <td>@s.Department</td>
+                <td>@s.Address</td>
+                <td>@s.GPA</td>
+            </tr>
+        }
+    </tbody>
+</table>
